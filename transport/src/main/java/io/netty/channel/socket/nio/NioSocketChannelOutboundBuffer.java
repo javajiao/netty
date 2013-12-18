@@ -375,16 +375,16 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                     break;
                 }
 
-                /*
                 if (cp.flushCheckpoint() > writeCounter) {
+                    /*
                     if (writeCounter > 0 && promises.size() == 1) {
                         this.writeCounter = 0;
                         totalPending -= writeCounter;
                         cp.flushCheckpoint(cp.flushCheckpoint() - writeCounter);
                     }
+                    */
                     break;
                 }
-                */
 
                 promises.remove();
                 if (cause == null) {
