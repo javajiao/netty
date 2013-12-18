@@ -246,7 +246,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
     @Override
     protected void onRecycle() {
         inNotify = false;
-        promises.clear();
+        assert promises.isEmpty();
         nioBufferCount = 0;
         nioBufferSize = 0;
         totalPending = 0;
