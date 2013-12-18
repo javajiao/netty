@@ -375,6 +375,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                     break;
                 }
 
+                /*
                 if (cp.flushCheckpoint() > writeCounter) {
                     if (writeCounter > 0 && promises.size() == 1) {
                         this.writeCounter = 0;
@@ -383,6 +384,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                     }
                     break;
                 }
+                */
 
                 promises.remove();
                 if (cause == null) {
@@ -391,7 +393,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                     safeFail(cp.promise(), cause);
                 }
             }
-
+            /*
             // Avoid overflow
             final long newWriteCounter = this.writeCounter;
             if (newWriteCounter >= 0x8000000000L) {
@@ -402,7 +404,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                 for (FlushCheckpoint cp: promises) {
                     cp.flushCheckpoint(cp.flushCheckpoint() - newWriteCounter);
                 }
-            }
+            }*/
         } finally {
             inNotify = false;
         }
