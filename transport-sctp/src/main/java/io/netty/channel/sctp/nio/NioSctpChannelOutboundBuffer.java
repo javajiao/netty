@@ -19,10 +19,27 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.nio.AbstractNioChannelOutboundBuffer;
 import io.netty.channel.sctp.SctpMessage;
+import io.netty.util.Recycler;
+import io.netty.util.Recycler.Handle;
 
 final class NioSctpChannelOutboundBuffer extends AbstractNioChannelOutboundBuffer {
-    NioSctpChannelOutboundBuffer(NioSctpChannel channel) {
-        super(channel);
+
+    private static final Recycler<NioSctpChannelOutboundBuffer> RECYCLER =
+            new Recycler<NioSctpChannelOutboundBuffer>() {
+                @Override
+                protected NioSctpChannelOutboundBuffer newObject(Handle<NioSctpChannelOutboundBuffer> handle) {
+                    return new NioSctpChannelOutboundBuffer(handle);
+                }
+            };
+
+    static NioSctpChannelOutboundBuffer newInstance(NioSctpChannel channel) {
+        NioSctpChannelOutboundBuffer buffer = RECYCLER.get();
+        buffer.channel = channel;
+        return buffer;
+    }
+
+    private NioSctpChannelOutboundBuffer(Handle<NioSctpChannelOutboundBuffer> handle) {
+        super(handle);
     }
 
     @Override

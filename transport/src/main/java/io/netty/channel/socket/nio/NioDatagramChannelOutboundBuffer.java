@@ -16,13 +16,31 @@
 package io.netty.channel.socket.nio;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.nio.AbstractNioChannelOutboundBuffer;
 import io.netty.channel.socket.DatagramPacket;
+import io.netty.util.Recycler;
+import io.netty.util.Recycler.Handle;
 
 final class NioDatagramChannelOutboundBuffer extends AbstractNioChannelOutboundBuffer {
-    NioDatagramChannelOutboundBuffer(NioDatagramChannel channel) {
-        super(channel);
+
+    private static final Recycler<NioDatagramChannelOutboundBuffer> RECYCLER =
+            new Recycler<NioDatagramChannelOutboundBuffer>() {
+                @Override
+                protected NioDatagramChannelOutboundBuffer newObject(Handle<NioDatagramChannelOutboundBuffer> handle) {
+                    return new NioDatagramChannelOutboundBuffer(handle);
+                }
+            };
+
+    static NioDatagramChannelOutboundBuffer newInstance(NioDatagramChannel channel) {
+        NioDatagramChannelOutboundBuffer buffer = RECYCLER.get();
+        buffer.channel = channel;
+        return buffer;
+    }
+
+    private NioDatagramChannelOutboundBuffer(Handle<? extends ChannelOutboundBuffer> handle) {
+        super(handle);
     }
 
     @Override

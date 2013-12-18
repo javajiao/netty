@@ -365,6 +365,6 @@ public class NioSctpChannel extends AbstractNioMessageChannel implements io.nett
 
     @Override
     protected ChannelOutboundBuffer newOutboundBuffer() {
-        return new NioSctpChannelOutboundBuffer(this);
+        return NioSctpChannelOutboundBuffer.newInstance(this);
     }
 }

@@ -19,13 +19,12 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.util.Recycler.Handle;
 
 public abstract class AbstractNioChannelOutboundBuffer extends ChannelOutboundBuffer {
-    protected AbstractNioChannelOutboundBuffer(AbstractNioChannel channel) {
-        super(channel);
-    }
 
-    protected AbstractNioChannelOutboundBuffer() {
+    protected AbstractNioChannelOutboundBuffer(Handle<? extends ChannelOutboundBuffer> handle) {
+        super(handle);
     }
 
     protected static ByteBuf toDirect(Channel channel, ByteBuf buf) {

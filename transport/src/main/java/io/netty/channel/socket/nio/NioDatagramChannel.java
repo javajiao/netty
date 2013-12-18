@@ -506,6 +506,6 @@ public final class NioDatagramChannel
 
     @Override
     protected ChannelOutboundBuffer newOutboundBuffer() {
-        return new NioDatagramChannelOutboundBuffer(this);
+        return NioDatagramChannelOutboundBuffer.newInstance(this);
     }
 }

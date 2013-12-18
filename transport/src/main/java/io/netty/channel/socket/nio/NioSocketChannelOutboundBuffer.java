@@ -26,14 +26,13 @@ import io.netty.util.Recycler;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Arrays;
-import java.util.Queue;
 
 final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuffer {
 
     private static final Recycler<NioSocketChannelOutboundBuffer> RECYCLER =
             new Recycler<NioSocketChannelOutboundBuffer>() {
         @Override
-        protected NioSocketChannelOutboundBuffer newObject(Handle handle) {
+        protected NioSocketChannelOutboundBuffer newObject(Handle<NioSocketChannelOutboundBuffer> handle) {
             return new NioSocketChannelOutboundBuffer(handle);
         }
     };
@@ -45,7 +44,6 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
     }
 
     private static final int INITIAL_CAPACITY = 32;
-    private final Recycler.Handle handle;
     private final ArrayDeque<FlushCheckpoint> promises =
             new ArrayDeque<FlushCheckpoint>();
     private ByteBuffer[] nioBuffers = new ByteBuffer[INITIAL_CAPACITY];
@@ -55,8 +53,8 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
     private long writeCounter;
     private boolean inNotify;
 
-    private NioSocketChannelOutboundBuffer(Recycler.Handle handle) {
-        this.handle = handle;
+    private NioSocketChannelOutboundBuffer(Recycler.Handle<NioSocketChannelOutboundBuffer> handle) {
+        super(handle);
     }
 
     @Override
@@ -246,8 +244,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
     }
 
     @Override
-    protected void recycle() {
-        super.recycle();
+    protected void onRecycle() {
         inNotify = false;
         promises.clear();
         nioBufferCount = 0;
@@ -261,15 +258,13 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
             // https://github.com/netty/netty/issues/1763
             Arrays.fill(nioBuffers, null);
         }
-
-        RECYCLER.recycle(this, handle);
     }
 
     static final class NioEntry extends Entry {
 
         private static final Recycler<NioEntry> RECYCLER = new Recycler<NioEntry>() {
             @Override
-            protected NioEntry newObject(Handle handle) {
+            protected NioEntry newObject(Handle<NioEntry> handle) {
                 return new NioEntry(handle);
             }
         };
@@ -284,16 +279,15 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
         ByteBuffer buf;
         int count = -1;
 
-        private NioEntry(Recycler.Handle entryHandle) {
+        private NioEntry(Recycler.Handle<NioEntry> entryHandle) {
             super(entryHandle);
         }
 
         @Override
-        protected void clear() {
+        protected void onRecycle() {
             buffers = null;
             buf = null;
             count = -1;
-            super.clear();
         }
 
         @Override
@@ -315,7 +309,7 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                 buffer.notifyPromises(null);
                 buffer.decrementPendingOutboundBytes(pendingSize());
             } finally {
-                clear();
+                recycle();
             }
         }
 
@@ -331,13 +325,8 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                     buffer.decrementPendingOutboundBytes(pendingSize());
                 }
             } finally {
-                clear();
+                recycle();
             }
-        }
-
-        @Override
-        protected void recycle() {
-            RECYCLER.recycle(this, entryHandle);
         }
 
         private int merge(ByteBuf buffer, ChannelPromise promise) {
