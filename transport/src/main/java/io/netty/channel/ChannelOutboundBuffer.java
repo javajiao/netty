@@ -300,11 +300,12 @@ public class ChannelOutboundBuffer {
         }
 
         // Release all unflushed messages.
-        final int unflushedCount = messages - flushed;
-
         try {
-            for (int i = 0; i < unflushedCount; i++) {
-                Entry e = last;
+            Entry e = first();
+            for (;;) {
+                if (e == null) {
+                    break;
+                }
                 e.fail(cause, false);
 
                 // Just decrease; do not trigger any events via decrementPendingOutboundBytes()
@@ -316,7 +317,7 @@ public class ChannelOutboundBuffer {
                     newWriteBufferSize = oldValue - size;
                 }
 
-                last = e.prev;
+                e = e.next();
             }
         } finally {
             messages = flushed;
