@@ -69,7 +69,8 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
             // This is needed because someone may write to the channel in a ChannelFutureListener which then
             // could lead to have the buffer merged into the current buffer. In this case the current buffer may be
             // removed as it was completely written before.
-            if (messageCount() != size() && buf.isReadable() && ((NioSocketChannel) channel).config().isWriteBufferAutoMerge()
+            if (messageCount() != size() && buf.isReadable()
+                    && ((NioSocketChannel) channel).config().isWriteBufferAutoMerge()
                     && (!inNotify || last() != first())) {
                 NioEntry entry = last();
                 if (entry.merge(buf, promise)) {
