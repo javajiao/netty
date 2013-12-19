@@ -43,7 +43,7 @@ final class NioSctpChannelOutboundBuffer extends AbstractNioChannelOutboundBuffe
     }
 
     @Override
-    protected long addMessage(Object msg, ChannelPromise promise) {
+    protected void addMessage(Object msg, ChannelPromise promise) {
         if (msg instanceof SctpMessage) {
             SctpMessage packet = (SctpMessage) msg;
             ByteBuf content = packet.content();
@@ -52,6 +52,6 @@ final class NioSctpChannelOutboundBuffer extends AbstractNioChannelOutboundBuffe
                 msg = new SctpMessage(packet.protocolIdentifier(), packet.streamIdentifier(), buf);
             }
         }
-        return super.addMessage(msg, promise);
+        super.addMessage(msg, promise);
     }
 }

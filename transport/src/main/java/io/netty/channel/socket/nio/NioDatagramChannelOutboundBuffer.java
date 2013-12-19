@@ -44,7 +44,7 @@ final class NioDatagramChannelOutboundBuffer extends AbstractNioChannelOutboundB
     }
 
     @Override
-    protected long addMessage(Object msg, ChannelPromise promise) {
+    protected void addMessage(Object msg, ChannelPromise promise) {
         if (msg instanceof DatagramPacket) {
             DatagramPacket packet = (DatagramPacket) msg;
             ByteBuf content = packet.content();
@@ -58,7 +58,7 @@ final class NioDatagramChannelOutboundBuffer extends AbstractNioChannelOutboundB
                 msg = toDirect(promise.channel(), content);
             }
         }
-        return super.addMessage(msg, promise);
+        super.addMessage(msg, promise);
     }
 
     private static boolean isCopyNeeded(ByteBuf buf) {
