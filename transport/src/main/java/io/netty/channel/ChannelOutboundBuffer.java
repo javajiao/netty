@@ -84,7 +84,7 @@ public class ChannelOutboundBuffer {
         return last;
     }
 
-    protected long addMessage(Object msg, ChannelPromise promise) {
+    protected void addMessage(Object msg, ChannelPromise promise) {
         int size = channel.estimatorHandle().size(msg);
         if (size < 0) {
             size = 0;
@@ -109,7 +109,6 @@ public class ChannelOutboundBuffer {
         // increment pending bytes after adding message to the unflushed arrays.
         // See https://github.com/netty/netty/issues/1619
         incrementPendingOutboundBytes(size);
-        return size;
     }
 
     protected void addFlush() {
@@ -196,6 +195,7 @@ public class ChannelOutboundBuffer {
     public void progress(long amount) {
         Entry e = first;
         e.pendingSize -= amount;
+        assert e.pendingSize >= 0;
         ChannelPromise p = e.promise;
         if (p instanceof ChannelProgressivePromise) {
             long progress = e.progress + amount;
@@ -254,6 +254,10 @@ public class ChannelOutboundBuffer {
 
     public boolean isEmpty() {
         return flushed == 0;
+    }
+
+    protected int messageCount() {
+        return messages;
     }
 
     void failFlushed(Throwable cause) {

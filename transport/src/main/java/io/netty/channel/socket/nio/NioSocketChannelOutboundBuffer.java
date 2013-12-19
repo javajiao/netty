@@ -58,7 +58,10 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
     }
 
     @Override
-    protected long addMessage(Object msg, ChannelPromise promise) {
+    protected void addMessage(Object msg, ChannelPromise promise) {
+        long size = total(msg);
+        assert size >= 0;
+
         if (msg instanceof ByteBuf) {
             ByteBuf buf = (ByteBuf) msg;
 
@@ -66,26 +69,21 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
             // This is needed because someone may write to the channel in a ChannelFutureListener which then
             // could lead to have the buffer merged into the current buffer. In this case the current buffer may be
             // removed as it was completely written before.
-            if (buf.isReadable() && ((NioSocketChannel) channel).config().isWriteBufferAutoMerge()
+            if (messageCount() != size() && buf.isReadable() && ((NioSocketChannel) channel).config().isWriteBufferAutoMerge()
                     && (!inNotify || last() != first())) {
                 NioEntry entry = last();
-                if (entry != null) {
-                    int size = entry.merge(buf, promise);
-
-                    if (size != -1) {
-                        return size;
-                    }
+                if (entry.merge(buf, promise)) {
+                    totalPending += size;
+                    return;
                 }
                 if (!buf.isDirect()) {
                     msg = toDirect(promise.channel(), buf);
                 }
             }
         }
-        long size = super.addMessage(msg, promise);
-        assert size >= 0;
+        super.addMessage(msg, promise);
         totalPending += size;
         addPromise(promise);
-        return size;
     }
 
     private void addPromise(ChannelPromise promise) {
@@ -329,9 +327,9 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
             }
         }
 
-        private int merge(ByteBuf buffer, ChannelPromise promise) {
+        private boolean merge(ByteBuf buffer, ChannelPromise promise) {
             if (!(msg() instanceof ByteBuf)) {
-                return -1;
+                return false;
             }
             ByteBuf last = (ByteBuf) msg();
             int readable = buffer.readableBytes();
@@ -356,9 +354,9 @@ final class NioSocketChannelOutboundBuffer extends AbstractNioChannelOutboundBuf
                 // increment pending bytes after adding message to the unflushed arrays.
                 // See https://github.com/netty/netty/issues/1619
                 outboundBuffer.incrementPendingOutboundBytes(readable);
-                return readable;
+                return true;
             }
-            return -1;
+            return false;
         }
     }
 
