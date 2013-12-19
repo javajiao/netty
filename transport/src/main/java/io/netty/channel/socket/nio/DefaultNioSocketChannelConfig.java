@@ -29,7 +29,7 @@ import static io.netty.channel.ChannelOption.SO_TIMEOUT;
 import static io.netty.channel.ChannelOption.WRITE_BUFFER_AUTO_MERGE;
 
 final class DefaultNioSocketChannelConfig extends DefaultSocketChannelConfig implements NioSocketChannelConfig {
-    private volatile boolean writeBufferAutoMerge;
+    private volatile boolean writeBufferAutoMerge = true;
 
     DefaultNioSocketChannelConfig(SocketChannel channel, Socket javaSocket) {
         super(channel, javaSocket);

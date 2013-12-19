@@ -63,6 +63,10 @@ final class NioSocketChannelOutboundBuffer extends ChannelOutboundBuffer {
         this.handle = handle;
     }
 
+    private boolean isAllFlushed() {
+        return messages == flushed;
+    }
+
     @Override
     protected void addMessage(Object msg, int size, ChannelPromise promise) {
         long total = total(msg);
@@ -74,8 +78,7 @@ final class NioSocketChannelOutboundBuffer extends ChannelOutboundBuffer {
             // This is needed because someone may write to the channel in a ChannelFutureListener which then
             // could lead to have the buffer merged into the current buffer. In this case the current buffer may be
             // removed as it was completely written before.
-            if (messages != flushed && buf.isReadable()
-                    && ((NioSocketChannel) channel).config().isWriteBufferAutoMerge()
+            if (!isAllFlushed() && ((NioSocketChannel) channel).config().isWriteBufferAutoMerge()
                     && (!inNotify || last != first)) {
                 Entry entry = last;
                 if (entry.merge(buf)) {
@@ -217,7 +220,7 @@ final class NioSocketChannelOutboundBuffer extends ChannelOutboundBuffer {
      * Refer to {@link io.netty.channel.socket.nio.NioSocketChannel#doWrite(ChannelOutboundBuffer)} for an example.
      * </p>
      */
-    public ByteBuffer[] nioBuffers() {
+    ByteBuffer[] nioBuffers() {
         long nioBufferSize = 0;
         int nioBufferCount = 0;
 
@@ -308,11 +311,11 @@ final class NioSocketChannelOutboundBuffer extends ChannelOutboundBuffer {
         return newArray;
     }
 
-    public int nioBufferCount() {
+    int nioBufferCount() {
         return nioBufferCount;
     }
 
-    public long nioBufferSize() {
+    long nioBufferSize() {
         return nioBufferSize;
     }
 
@@ -408,7 +411,7 @@ final class NioSocketChannelOutboundBuffer extends ChannelOutboundBuffer {
                 last.writeBytes(buffer);
                 safeRelease(buffer);
                 pendingSize += readable;
-                pendingTotal += pendingTotal;
+                pendingTotal += readable;
                 total += readable;
 
                 return true;

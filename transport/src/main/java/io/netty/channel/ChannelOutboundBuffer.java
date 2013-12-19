@@ -25,6 +25,10 @@ import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
+/**
+ * (Transport implementors only) an internal data structure used by {@link AbstractChannel} to store its pending
+ * outbound write requests.
+ */
 public abstract class ChannelOutboundBuffer {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ChannelOutboundBuffer.class);
@@ -43,6 +47,10 @@ public abstract class ChannelOutboundBuffer {
         this.channel = channel;
     }
 
+    /**
+     * <strong>Caution:</strong>
+     * Sub-classes which use this constructor must set the {@link #channel} before use it.
+     */
     protected ChannelOutboundBuffer() {
     }
 
@@ -102,6 +110,10 @@ public abstract class ChannelOutboundBuffer {
         }
     }
 
+    /**
+     * Try to get the total size of the message and return it. This method will return {@code -1} if it is not
+     * possible to get the size.
+     */
     protected static long total(Object msg) {
         if (msg instanceof ByteBuf) {
             return ((ByteBuf) msg).readableBytes();
@@ -125,6 +137,14 @@ public abstract class ChannelOutboundBuffer {
 
     public final boolean isEmpty() {
         return size() == 0;
+    }
+
+    /**
+     * Returns the total bytes which are pending to be written to the transport.
+     *
+     */
+    public final long totalPendingSize() {
+        return totalPendingSize;
     }
 
     final void failFlushed(Throwable cause) {
@@ -179,6 +199,9 @@ public abstract class ChannelOutboundBuffer {
         recycle();
     }
 
+    /**
+     * Try to release the message and log any error.
+     */
     protected static void safeRelease(Object message) {
         try {
             ReferenceCountUtil.release(message);
@@ -187,6 +210,9 @@ public abstract class ChannelOutboundBuffer {
         }
     }
 
+    /**
+     * Try to fail the given {@link ChannelPromise} with the {@link Throwable}.
+     */
     protected static void safeFail(ChannelPromise promise, Throwable cause) {
         if (!isVoidPromise(promise) && !promise.tryFailure(cause)) {
             logger.warn("Promise done already: {} - new exception is:", promise, cause);
@@ -200,7 +226,6 @@ public abstract class ChannelOutboundBuffer {
 
         onRecycle();
     }
-
     final void addMessage(Object msg, ChannelPromise promise) {
         int size = channel.estimatorHandle().size(msg);
         if (size < 0) {
@@ -213,14 +238,59 @@ public abstract class ChannelOutboundBuffer {
         incrementPendingOutboundBytes(size);
     }
 
+    /**
+     * Is called once this {@link ChannelOutboundBuffer} will not be used anymore and so is recycled. This
+     * allows implementations to also pool them if needed.
+     */
     protected void onRecycle() { }
-    protected abstract void addMessage(Object msg, int pendingSize, ChannelPromise promise);
-    protected abstract void addFlush();
-    protected abstract void failUnflushed(Throwable cause);
-    public abstract int size();
-    public abstract Object current();
-    public abstract void progress(long amount);
-    public abstract boolean remove();
-    public abstract boolean remove(Throwable cause);
 
+    /**
+     * Add a message to this {@link ChannelOutboundBuffer} with the calculated pending size. The given
+     * {@link ChannelPromise} will be notifed once this message was handled.
+     */
+    protected abstract void addMessage(Object msg, int pendingSize, ChannelPromise promise);
+
+    /**
+     * Mark all messages in this {@link ChannelOutboundBuffer} as flushed and so let the transport
+     * pick them up via {@link #current()}.
+     */
+    protected abstract void addFlush();
+
+    /**
+     * Fail all messages with the given {Throwable} which are hold in this {@link ChannelOutboundBuffer}
+     * but were not flushed yet.
+     */
+    protected abstract void failUnflushed(Throwable cause);
+
+    /**
+     * Returns the number of messages which should be written to the socket and so were flushed before.
+     */
+    public abstract int size();
+
+    /**
+     * Return the current message which should be written to the transport or {@code null} if nothing is ready at
+     * the moment.
+     */
+    public abstract Object current();
+
+    /**
+     * Is called once there was progress on writting a message.
+     */
+    public abstract void progress(long amount);
+
+    /**
+     * Must be called to remove the current message from the {@link ChannelOutboundBuffer}. This will also notify the
+     * {@link ChannelPromise} which belongs to the message if needed.
+     *
+     * Returns {@code true} if there are more messages in the {@link ChannelOutboundBuffer} to process.
+     */
+    public abstract boolean remove();
+
+    /**
+     * Must be called to remove the current message from the {@link ChannelOutboundBuffer} as result of an error.
+     * This will also notify the {@link ChannelPromise} which belongs to the message if needed.
+     *
+     * Returns {@code true} if there are more messages in the {@link ChannelOutboundBuffer} to process.
+     */
+    public abstract boolean remove(Throwable cause);
 }

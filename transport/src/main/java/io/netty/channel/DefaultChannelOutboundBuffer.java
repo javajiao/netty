@@ -23,8 +23,7 @@ import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
 
 /**
- * (Transport implementors only) an internal data structure used by {@link AbstractChannel} to store its pending
- * outbound write requests.
+ * Default implementation of {@link ChannelOutboundBuffer} which should be suitable for most transport implementations.
  */
 public class DefaultChannelOutboundBuffer extends ChannelOutboundBuffer {
 
@@ -134,7 +133,7 @@ public class DefaultChannelOutboundBuffer extends ChannelOutboundBuffer {
         }
     }
 
-    private static class Entry {
+    static class Entry {
         private static final Recycler<Entry> RECYCLER = new Recycler<Entry>() {
             @Override
             protected Entry newObject(Handle<Entry> handle) {
@@ -172,7 +171,7 @@ public class DefaultChannelOutboundBuffer extends ChannelOutboundBuffer {
             }
         }
 
-        public void fail(Throwable cause, boolean decrementAndNotify) {
+        private void fail(Throwable cause, boolean decrementAndNotify) {
             try {
                 safeRelease(msg);
                 safeFail(promise, cause);
