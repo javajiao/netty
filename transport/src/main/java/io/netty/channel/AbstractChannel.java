@@ -364,7 +364,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     }
 
     protected ChannelOutboundBuffer newOutboundBuffer() {
-        return ChannelOutboundBuffer.newInstance(this);
+        return new DefaultChannelOutboundBuffer(this);
     }
 
     /**

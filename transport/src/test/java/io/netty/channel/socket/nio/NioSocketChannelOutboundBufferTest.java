@@ -88,7 +88,7 @@ public class NioSocketChannelOutboundBufferTest {
 
         ByteBuf buf = copiedBuffer("buf1", CharsetUtil.US_ASCII);
         ByteBuffer nioBuf = buf.internalNioBuffer(0, buf.readableBytes());
-        buffer.addMessage(buf, promise);
+        buffer.addMessage(buf, buf.readableBytes(), promise);
         buffers = buffer.nioBuffers();
         assertEquals("Should still be 0 as not flushed yet", 0, buffer.nioBufferCount());
         for (ByteBuffer b: buffers) {
@@ -130,7 +130,7 @@ public class NioSocketChannelOutboundBufferTest {
 
         ByteBuf buf = directBuffer().writeBytes("buf1".getBytes(CharsetUtil.US_ASCII));
         for (int i = 0; i < 64; i++) {
-            buffer.addMessage(buf.copy(), promise);
+            buffer.addMessage(buf.copy(), buf.readableBytes(), promise);
         }
         ByteBuffer[] nioBuffers = buffer.nioBuffers();
         assertEquals("Should still be 0 as not flushed yet", 0, buffer.nioBufferCount());
@@ -173,7 +173,7 @@ public class NioSocketChannelOutboundBufferTest {
         for (int i = 0; i < 65; i++) {
             comp.addComponent(buf.copy()).writerIndex(comp.writerIndex() + buf.readableBytes());
         }
-        buffer.addMessage(comp, promise);
+        buffer.addMessage(comp, comp.readableBytes(), promise);
 
         ByteBuffer[] buffers = buffer.nioBuffers();
         assertEquals("Should still be 0 as not flushed yet", 0, buffer.nioBufferCount());

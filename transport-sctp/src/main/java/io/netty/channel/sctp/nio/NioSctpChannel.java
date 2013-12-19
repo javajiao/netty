@@ -25,6 +25,7 @@ import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.DefaultChannelOutboundBuffer;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.channel.RecvByteBufAllocator;
@@ -365,6 +366,19 @@ public class NioSctpChannel extends AbstractNioMessageChannel implements io.nett
 
     @Override
     protected ChannelOutboundBuffer newOutboundBuffer() {
-        return NioSctpChannelOutboundBuffer.newInstance(this);
+        return new DefaultChannelOutboundBuffer(this) {
+            @Override
+            protected void addMessage(Object msg, int pendingSize, ChannelPromise promise) {
+                if (msg instanceof SctpMessage) {
+                    SctpMessage packet = (SctpMessage) msg;
+                    ByteBuf content = packet.content();
+                    if (!content.isDirect() || content.nioBufferCount() > 1) {
+                        ByteBuf buf = toDirect(content);
+                        msg = new SctpMessage(packet.protocolIdentifier(), packet.streamIdentifier(), buf);
+                    }
+                }
+                super.addMessage(msg, pendingSize, promise);
+            }
+        };
     }
 }

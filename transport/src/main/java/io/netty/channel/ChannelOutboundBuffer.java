@@ -13,16 +13,10 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-/*
- * Written by Josh Bloch of Google Inc. and released to the public domain,
- * as explained at http://creativecommons.org/publicdomain/zero/1.0/.
- */
 package io.netty.channel;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
-import io.netty.util.Recycler;
-import io.netty.util.Recycler.Handle;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -31,95 +25,32 @@ import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-/**
- * (Transport implementors only) an internal data structure used by {@link AbstractChannel} to store its pending
- * outbound write requests.
- */
-public class ChannelOutboundBuffer {
+public abstract class ChannelOutboundBuffer {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ChannelOutboundBuffer.class);
 
-    private static final Recycler<ChannelOutboundBuffer> RECYCLER = new Recycler<ChannelOutboundBuffer>() {
-        @Override
-        protected ChannelOutboundBuffer newObject(Handle<ChannelOutboundBuffer> handle) {
-            return new ChannelOutboundBuffer(handle);
-        }
-    };
-
-    static ChannelOutboundBuffer newInstance(AbstractChannel channel) {
-        ChannelOutboundBuffer buffer = RECYCLER.get();
-        buffer.channel = channel;
-        return buffer;
-    }
-
-    private final Recycler.Handle<ChannelOutboundBuffer> handle;
     protected AbstractChannel channel;
-
-    private Entry first;
-    private Entry last;
-    private int flushed;
-    private int messages;
     private boolean inFail;
-
     private static final AtomicLongFieldUpdater<ChannelOutboundBuffer> TOTAL_PENDING_SIZE_UPDATER =
             AtomicLongFieldUpdater.newUpdater(ChannelOutboundBuffer.class, "totalPendingSize");
 
     private volatile long totalPendingSize;
-
     private static final AtomicIntegerFieldUpdater<ChannelOutboundBuffer> WRITABLE_UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(ChannelOutboundBuffer.class, "writable");
     private volatile int writable = 1;
 
-    @SuppressWarnings("unchecked")
-    protected ChannelOutboundBuffer(Recycler.Handle<? extends ChannelOutboundBuffer> handle) {
-        // only for sub-classes
-        this.handle = (Handle<ChannelOutboundBuffer>) handle;
+    protected ChannelOutboundBuffer(AbstractChannel channel) {
+        this.channel = channel;
     }
 
-    protected Entry first() {
-        return first;
-    }
-
-    protected Entry last() {
-        return last;
-    }
-
-    protected void addMessage(Object msg, ChannelPromise promise) {
-        int size = channel.estimatorHandle().size(msg);
-        if (size < 0) {
-            size = 0;
-        }
-
-        Entry e = newEntry();
-        if (last == null) {
-            first = e;
-            last = e;
-        } else {
-            last.next = e;
-            e.prev = last;
-            last = e;
-        }
-        e.msg = msg;
-        e.pendingSize = size;
-        e.promise = promise;
-        e.total = total(msg);
-
-        messages++;
-
-        // increment pending bytes after adding message to the unflushed arrays.
-        // See https://github.com/netty/netty/issues/1619
-        incrementPendingOutboundBytes(size);
-    }
-
-    protected void addFlush() {
-        flushed = messages;
+    protected ChannelOutboundBuffer() {
     }
 
     /**
      * Increment the pending bytes which will be written at some point.
      * This method is thread-safe!
      */
-    protected void incrementPendingOutboundBytes(int size) {
+    protected final void incrementPendingOutboundBytes(int size) {
         // Cache the channel and check for null to make sure we not produce a NPE in case of the Channel gets
         // recycled while process this method.
         Channel channel = this.channel;
@@ -147,7 +78,7 @@ public class ChannelOutboundBuffer {
      * Decrement the pending bytes which will be written at some point.
      * This method is thread-safe!
      */
-    protected void decrementPendingOutboundBytes(long size) {
+    protected final void decrementPendingOutboundBytes(long size) {
         // Cache the channel and check for null to make sure we not produce a NPE in case of the Channel gets
         // recycled while process this method.
         Channel channel = this.channel;
@@ -184,83 +115,19 @@ public class ChannelOutboundBuffer {
         return -1;
     }
 
-    public Object current() {
-        if (isEmpty()) {
-            return null;
-        } else {
-            return first.msg;
-        }
-    }
-
-    public void progress(long amount) {
-        Entry e = first;
-        e.pendingSize -= amount;
-        assert e.pendingSize >= 0;
-        ChannelPromise p = e.promise;
-        if (p instanceof ChannelProgressivePromise) {
-            long progress = e.progress + amount;
-            e.progress = progress;
-            ((ChannelProgressivePromise) p).tryProgress(progress, e.total);
-        }
-    }
-
     protected static boolean isVoidPromise(ChannelPromise promise) {
         return promise instanceof VoidChannelPromise;
     }
 
-    public boolean remove() {
-        if (isEmpty()) {
-            return false;
-        }
-
-        Entry e = first;
-        first = e.next;
-        if (first == null) {
-            last = null;
-        }
-
-        messages--;
-        flushed--;
-        e.success();
-
-        return true;
-    }
-
-    public boolean remove(Throwable cause) {
-        if (isEmpty()) {
-            return false;
-        }
-
-        Entry e = first;
-        first = e.next;
-        if (first == null) {
-            last = null;
-        }
-
-        messages--;
-        flushed--;
-        e.fail(cause, true);
-
-        return true;
-    }
-
-    boolean getWritable() {
+    final boolean getWritable() {
         return writable != 0;
     }
 
-    public int size() {
-        return flushed;
+    public final boolean isEmpty() {
+        return size() == 0;
     }
 
-    public boolean isEmpty() {
-        return flushed == 0;
-    }
-
-    protected int messageCount() {
-        return messages;
-    }
-
-    void failFlushed(Throwable cause) {
+    final void failFlushed(Throwable cause) {
         // Make sure that this method does not reenter.  A listener added to the current promise can be notified by the
         // current thread in the tryFailure() call of the loop below, and the listener can trigger another fail() call
         // indirectly (usually by closing the channel.)
@@ -282,7 +149,7 @@ public class ChannelOutboundBuffer {
         }
     }
 
-    void close(final ClosedChannelException cause) {
+    final void close(final ClosedChannelException cause) {
         if (inFail) {
             channel.eventLoop().execute(new Runnable() {
                 @Override
@@ -305,26 +172,8 @@ public class ChannelOutboundBuffer {
 
         // Release all unflushed messages.
         try {
-            Entry e = first();
-            for (;;) {
-                if (e == null) {
-                    break;
-                }
-                e.fail(cause, false);
-
-                // Just decrease; do not trigger any events via decrementPendingOutboundBytes()
-                long size = e.pendingSize;
-                long oldValue = totalPendingSize;
-                long newWriteBufferSize = oldValue - size;
-                while (!TOTAL_PENDING_SIZE_UPDATER.compareAndSet(this, oldValue, newWriteBufferSize)) {
-                    oldValue = totalPendingSize;
-                    newWriteBufferSize = oldValue - size;
-                }
-
-                e = e.next();
-            }
+            failUnflushed(cause);
         } finally {
-            messages = flushed;
             inFail = false;
         }
         recycle();
@@ -344,105 +193,34 @@ public class ChannelOutboundBuffer {
         }
     }
 
-    protected Entry newEntry() {
-        return Entry.newInstance(this);
-    }
-
-    protected static class Entry {
-        private static final Recycler<Entry> RECYCLER = new Recycler<Entry>() {
-            @Override
-            protected Entry newObject(Handle<Entry> handle) {
-                return new Entry(handle);
-            }
-        };
-
-        static Entry newInstance(ChannelOutboundBuffer buffer) {
-            Entry entry = RECYCLER.get();
-            entry.buffer = buffer;
-            return entry;
-        }
-
-        protected final Recycler.Handle<Entry> entryHandle;
-        private Object msg;
-        private ChannelPromise promise;
-        private long progress;
-        protected long total;
-        protected long pendingSize;
-        protected Entry next;
-        private Entry prev;
-        protected ChannelOutboundBuffer buffer;
-
-        @SuppressWarnings("unchecked")
-        protected Entry(Recycler.Handle<? extends Entry> entryHandle) {
-            this.entryHandle = (Handle<Entry>) entryHandle;
-        }
-
-        public Entry next() {
-            return next;
-        }
-
-        public Entry prev() {
-            return prev;
-        }
-
-        public Object msg() {
-            return msg;
-        }
-
-        public void success() {
-            try {
-                safeRelease(msg);
-                promise.trySuccess();
-                buffer.decrementPendingOutboundBytes(pendingSize);
-            } finally {
-                recycle();
-            }
-        }
-
-        public void fail(Throwable cause, boolean decrementAndNotify) {
-            try {
-                safeRelease(msg);
-                safeFail(promise, cause);
-                if (decrementAndNotify) {
-                    buffer.decrementPendingOutboundBytes(pendingSize);
-                }
-            } finally {
-                recycle();
-            }
-        }
-
-        public long pendingSize() {
-            return pendingSize;
-        }
-
-        protected final void recycle() {
-            msg = null;
-            promise = null;
-            progress = 0;
-            total = 0;
-            pendingSize = 0;
-            next = null;
-            prev = null;
-            buffer = null;
-            onRecycle();
-            entryHandle.recycle(this);
-        }
-
-        protected void onRecycle() { }
-    }
-
     private void recycle() {
         channel = null;
-        first = null;
-        last = null;
-        flushed = 0;
-        messages = 0;
         totalPendingSize = 0;
         writable = 1;
 
         onRecycle();
-        handle.recycle(this);
+    }
+
+    final void addMessage(Object msg, ChannelPromise promise) {
+        int size = channel.estimatorHandle().size(msg);
+        if (size < 0) {
+            size = 0;
+        }
+        addMessage(msg, size, promise);
+
+        // increment pending bytes after adding message to the unflushed arrays.
+        // See https://github.com/netty/netty/issues/1619
+        incrementPendingOutboundBytes(size);
     }
 
     protected void onRecycle() { }
+    protected abstract void addMessage(Object msg, int pendingSize, ChannelPromise promise);
+    protected abstract void addFlush();
+    protected abstract void failUnflushed(Throwable cause);
+    public abstract int size();
+    public abstract Object current();
+    public abstract void progress(long amount);
+    public abstract boolean remove();
+    public abstract boolean remove(Throwable cause);
+
 }

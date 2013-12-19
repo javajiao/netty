@@ -24,6 +24,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.DefaultChannelOutboundBuffer;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.channel.RecvByteBufAllocator;
@@ -505,7 +506,29 @@ public final class NioDatagramChannel
     }
 
     @Override
-    protected ChannelOutboundBuffer newOutboundBuffer() {
-        return NioDatagramChannelOutboundBuffer.newInstance(this);
+    protected DefaultChannelOutboundBuffer newOutboundBuffer() {
+        return new DefaultChannelOutboundBuffer(this) {
+            @Override
+            protected void addMessage(Object msg, int size, ChannelPromise promise) {
+                if (msg instanceof DatagramPacket) {
+                    DatagramPacket packet = (DatagramPacket) msg;
+                    ByteBuf content = packet.content();
+                    if (isCopyNeeded(content)) {
+                        ByteBuf buf = toDirect(content);
+                        msg = new DatagramPacket(buf, packet.recipient(), packet.sender());
+                    }
+                } else if (msg instanceof ByteBuf) {
+                    ByteBuf content = (ByteBuf) msg;
+                    if (isCopyNeeded(content)) {
+                        msg = toDirect(content);
+                    }
+                }
+                super.addMessage(msg, size, promise);
+            }
+
+            private boolean isCopyNeeded(ByteBuf buf) {
+                return !buf.isDirect() || buf.nioBufferCount() > 1;
+            }
+        };
     }
 }
